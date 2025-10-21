@@ -1,0 +1,162 @@
+---
+title: "Quetzal-RNAseq-101325"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r prepare environment}
+library(RNAseqFunctions)
+library(aprilSALK2)
+library(qdapRegex)
+library(ggrepel)
+library(WebGestaltR)
+library(ggplot2)
+library(pheatmap)
+library(DESeq2)
+```
+
+```{r}
+setwd("/vast/igc/analyses/nick/CALLAWAY/Quetzal-RNAseq-101325/")
+raw <- processRawTxt("/vast/igc/analyses/nick/CALLAWAY/Quetzal-RNAseq-101325/data/raw.txt")
+anno <- processAnnoTxt("/vast/igc/analyses/nick/CALLAWAY/Quetzal-RNAseq-101325/data/raw.txt")
+```
+
+# Looking at timecourse samples
+
+```{r}
+raw_tc <- raw[, c(1:6, 22)]
+metadata_tc <- data.frame(row.names = colnames(raw_tc),
+                          simpSamp = c("27_M1", "27_M2", "35_F1", "35_M1", "47_F1", "47_M2", "Nk678"),
+                          daysPT = as.factor(c(27, 27, 35, 35, 47, 47, 0)),
+                          rep = c("M1","M2","F1","M1","F1","M2", "Nk678"))
+```
+
+```{r}
+design_tc <- checkMetaData(metadata_tc, raw_tc)
+de_mat_tc <- DESeqDataSetFromMatrix(raw_tc*2, design_tc, as.formula(~ daysPT))
+Dnorm_tc <- DESeq_and_Filt(de_mat_tc, filter_thresh = 10,  minSamples = 2)
+normalized_counts_tc <- filt.norm(de_mat_tc, thresh=10)
+```
+
+```{r}
+setwd("/vast/igc/analyses/nick/CALLAWAY/Quetzal-RNAseq-101325/QC")
+qc_tc <- myExplore(counts = counts(Dnorm_tc,normalized = FALSE, replaced = FALSE)/2,
+                              design = colData(Dnorm_tc),
+                              colData1 = "daysPT",
+                              colData2 = "rep",
+                              formulaDE2 = "~ daysPT",
+                              ref = "0",
+                              name = "explore_all_tc_samples",
+                              anno = anno)
+```
+
+# Looking at knockout samples
+
+```{r}
+raw_ko <- raw[, c(7:40)[c(7:40) != 22]]
+metadata_ko <- data.frame(row.names = colnames(raw_ko),
+                          simpSamp = colnames(raw_ko),
+                          transplant = c("KO","KO","KO","KO","KO","KO",
+                                         "KO","KO","KO","KO","KO","KO",
+                                         "KO","KO","KO","WT","WT","WT",
+                                         "WT","WT","WT","WT","WT","WT",
+                                         "WT","WT","WT","WT","WT","WT",
+                                         "WT","WT","WT"),
+                          celltype = c("Glia","NeuN","PV","Glia","NeuN","PV",
+                                        "Glia","NeuN","PV","PV","Glia","NeuN",
+                                        "Glia","NeuN","PV","Glia","NeuN","PV",
+                                        "PV","Glia","NeuN","Glia","NeuN","PV",
+                                        "Glia","NeuN","PV","Glia","NeuN","PV",
+                                        "Glia","NeuN","PV"),
+                          sample = as.factor(c(11,11,11,13,13,13,
+                                            2,2,2,3,3,3,
+                                            4,4,4,1,1,1,
+                                            2,2,2,5,5,5,
+                                            6,6,6,7,7,7,
+                                            8,8,8)))
+
+raw_ko_glia <- raw_ko[, grepl("Glia", colnames(raw_ko))]
+raw_ko_neun <- raw_ko[, grepl("NeuN", colnames(raw_ko))]
+raw_ko_pv <- raw_ko[, grepl("PV", colnames(raw_ko))]
+metadata_ko_glia <- metadata_ko[grepl("Glia", rownames(metadata_ko)), ]
+metadata_ko_neun <- metadata_ko[grepl("NeuN", rownames(metadata_ko)), ]
+metadata_ko_pv <- metadata_ko[grepl("PV", rownames(metadata_ko)), ]
+```
+
+```{r}
+design_ko <- checkMetaData(metadata_ko, raw_ko)
+de_mat_ko <- DESeqDataSetFromMatrix(raw_ko*2, design_ko, as.formula(~ transplant + celltype))
+Dnorm_ko <- DESeq_and_Filt(de_mat_ko, filter_thresh = 10,  minSamples = 2)
+normalized_counts_ko <- filt.norm(de_mat_ko, thresh=10)
+
+design_ko_glia <- checkMetaData(metadata_ko_glia, raw_ko_glia)
+de_mat_ko_glia <- DESeqDataSetFromMatrix(raw_ko_glia*2, design_ko_glia, as.formula(~ transplant))
+Dnorm_ko_glia <- DESeq_and_Filt(de_mat_ko_glia, filter_thresh = 10,  minSamples = 2)
+normalized_counts_ko_glia <- filt.norm(de_mat_ko_glia, thresh=10)
+
+design_ko_neun <- checkMetaData(metadata_ko_neun, raw_ko_neun)
+de_mat_ko_neun <- DESeqDataSetFromMatrix(raw_ko_neun*2, design_ko_neun, as.formula(~ transplant))
+Dnorm_ko_neun <- DESeq_and_Filt(de_mat_ko_neun, filter_thresh = 10,  minSamples = 2)
+normalized_counts_ko_neun <- filt.norm(de_mat_ko_neun, thresh=10)
+
+design_ko_pv <- checkMetaData(metadata_ko_pv, raw_ko_pv)
+de_mat_ko_pv <- DESeqDataSetFromMatrix(raw_ko_pv*2, design_ko_pv, as.formula(~ transplant))
+Dnorm_ko_pv <- DESeq_and_Filt(de_mat_ko_pv, filter_thresh = 10,  minSamples = 2)
+normalized_counts_ko_pv <- filt.norm(de_mat_ko_pv, thresh=10)
+```
+
+```{r}
+setwd("/vast/igc/analyses/nick/CALLAWAY/Quetzal-RNAseq-101325/QC")
+qc_ko <- myExplore(counts = counts(Dnorm_ko,normalized = FALSE, replaced = FALSE)/2,
+                              design = colData(Dnorm_ko),
+                              colData1 = "transplant",
+                              colData2 = "celltype",
+                              formulaDE2 = "~ transplant + celltype",
+                              ref = "WT",
+                              name = "explore_all_ko_samples",
+                              anno = anno)
+
+qc_ko_glia <- myExplore(counts = counts(Dnorm_ko_glia,normalized = FALSE, replaced = FALSE)/2,
+                              design = colData(Dnorm_ko_glia),
+                              colData1 = "transplant",
+                              colData2 = "celltype",
+                              formulaDE2 = "~ transplant",
+                              ref = "WT",
+                              name = "explore_all_ko_glia_samples",
+                              anno = anno)
+
+qc_ko_neun <- myExplore(counts = counts(Dnorm_ko_neun,normalized = FALSE, replaced = FALSE)/2,
+                              design = colData(Dnorm_ko_neun),
+                              colData1 = "transplant",
+                              colData2 = "celltype",
+                              formulaDE2 = "~ transplant",
+                              ref = "WT",
+                              name = "explore_all_ko_neun_samples",
+                              anno = anno)
+
+qc_ko_pv <- myExplore(counts = counts(Dnorm_ko_pv,normalized = FALSE, replaced = FALSE)/2,
+                              design = colData(Dnorm_ko_pv),
+                              colData1 = "transplant",
+                              colData2 = "celltype",
+                              formulaDE2 = "~ transplant",
+                              ref = "WT",
+                              name = "explore_all_ko_pv_samples",
+                              anno = anno)
+```
+
+```{r}
+quarto_tc <- list(`Normalized Counts`=normalized_counts_tc,
+               `All Samples`=Dnorm_tc)
+saveRDS(quarto_tc, '/vast/igc/analyses/nick/CALLAWAY/Quetzal-RNAseq-101325/data/Quetzal-RNAseq-101325_quarto_tc.rds')
+```
+
+```{r}
+quarto_ko <- list(`Normalized Counts`=normalized_counts_ko,
+               `All Samples`=Dnorm_ko,
+               `Glia` = Dnorm_ko_glia,
+               `NeuN` = Dnorm_ko_neun,
+               `PV` = Dnorm_ko_pv)
+saveRDS(quarto_ko, '/vast/igc/analyses/nick/CALLAWAY/Quetzal-RNAseq-101325/data/Quetzal-RNAseq-101325_quarto_ko.rds')
+```
+
